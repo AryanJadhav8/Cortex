@@ -1,0 +1,10 @@
+# Python Specific Ignored Files
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# Virtual Environment
+venv/
+
+# Data Files
+*.csv
