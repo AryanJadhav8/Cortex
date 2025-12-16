@@ -26,19 +26,21 @@ class HealthScorer:
         if not missing_summary:
             return 0.0
 
-        missing_percents = [percent_dict.get(col_name) 
-                            for col_name, percent_dict in missing_summary.get('Missing Percent', {}).items()]
-        
-        if not missing_percents:
+        # Expecting missing_summary to be the dict output of DataFrame.to_dict(),
+        # i.e. { 'Missing Count': {col: count, ...}, 'Missing Percent': {col: pct, ...} }
+        missing_percents_map = missing_summary.get('Missing Percent', {})
+        if not missing_percents_map:
             return 0.0
-            
+
+        missing_percents = list(missing_percents_map.values())
+
         # Rule 1: Catastrophic failure (any column > 80% missing)
         if any(p > 80 for p in missing_percents):
             return HealthScorer.PENALTY_WEIGHTS["missing_data"]
 
         # Calculate the average missing percentage of affected columns
         avg_missing = sum(missing_percents) / len(missing_percents)
-        
+
         # Rule 2: High or Moderate penalties (based on average impact)
         if avg_missing > 40:
             # High average missingness (40-80%): 75% of max penalty
@@ -46,7 +48,7 @@ class HealthScorer:
         elif avg_missing > 5:
             # Moderate average missingness (5-40%): 25% of max penalty
             return HealthScorer.PENALTY_WEIGHTS["missing_data"] * 0.25
-            
+
         return 0.0
 
     @staticmethod
@@ -93,26 +95,30 @@ class HealthScorer:
         """
         high_cardinality_count = 0
         constant_count = 0
-        
-        # Total number of columns analyzed
-        all_cols_count = len(cardinality_summary.get('Unique Values', {}))
+
+        # Expect cardinality_summary to look like:
+        # { 'Unique Values': {col: count, ...}, 'Cardinality Flag': {col: flag, ...} }
+        unique_map = cardinality_summary.get('Unique Values', {})
+        flag_map = cardinality_summary.get('Cardinality Flag', {})
+
+        all_cols_count = len(unique_map)
         if all_cols_count == 0:
             return 0.0
 
-        for col_name, flag_dict in cardinality_summary.get('Cardinality Flag', {}).items():
-            flag = flag_dict.get(col_name)
+        for col_name, flag in flag_map.items():
             if flag == 'High (Potential ID)':
                 high_cardinality_count += 1
 
-        for col_name, count_dict in cardinality_summary.get('Unique Values', {}).items():
-            count = count_dict.get(col_name)
-            # Check for constant/near-constant features (unique count <= 1)
-            if count <= 1:
-                constant_count += 1
-        
+        for col_name, count in unique_map.items():
+            try:
+                if count <= 1:
+                    constant_count += 1
+            except Exception:
+                # If count is not numeric, skip it
+                continue
+
         # Penalty is proportional to the fraction of features that have the issue.
         penalty_id = (high_cardinality_count / all_cols_count) * HealthScorer.PENALTY_WEIGHTS["cardinality_risk"]
-        
         penalty_constant = (constant_count / all_cols_count) * HealthScorer.PENALTY_WEIGHTS["constant_features"]
 
         return penalty_id + penalty_constant

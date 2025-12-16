@@ -1,3 +1,4 @@
+from typing import Dict, List, Any
 import pandas as pd
 import io
 from collections import Counter # Keep this for robust duplicate counting
@@ -59,38 +60,74 @@ class DataLoader:
 
 
     @staticmethod
-    def infer_schema(df: pd.DataFrame) -> dict:
+    def infer_schema(df: pd.DataFrame, target_col: str) -> Dict[str, Any]: # <-- MUST BE DEFINED LIKE THIS
         """
-        Analyzes column types to classify them for downstream analysis.
-        Returns a dictionary separating numeric, categorical, and ID-like columns.
+        Infers the data type categories (numeric, categorical, datetime) for features.
         """
-        schema = {
-            "numeric": [],
-            "categorical": [],
-            "id_like": [],
-            "datetime": []
-        }
-        
+        numeric_cols: List[str] = []
+        categorical_cols: List[str] = []
+        datetime_cols: List[str] = []
+        # new: capture numeric columns that are actually binary categorical (e.g., 0/1 flags)
+        binary_categorical: List[str] = []
+
+        # Determine unique value count threshold for categorical features
+        # Assuming any column with <= 50 unique values OR < 10% of total rows is treated as categorical/object
+        max_categorical_cardinality = min(50, int(len(df) * 0.1))
+
         for col in df.columns:
-            # Get distinct count and total count
-            n_unique = df[col].nunique()
-            total_rows = len(df)
-            dtype = df[col].dtype
-            
-            # Heuristic: If all values are unique and it's a string/int, it's likely an ID
-            # But only if the dataset is reasonably large (>50 rows)
-            if n_unique == total_rows and total_rows > 50:
-                schema["id_like"].append(col)
+            if col == target_col:
                 continue
-                
-            # Check Numeric
-            if pd.api.types.is_numeric_dtype(dtype):
-                schema["numeric"].append(col)
-            # Check Datetime
-            elif pd.api.types.is_datetime64_any_dtype(dtype):
-                schema["datetime"].append(col)
-            # Default to Categorical (Object/String)
+
+            # Check for Datetime
+            if pd.api.types.is_datetime64_any_dtype(df[col]):
+                datetime_cols.append(col)
+
+            # Check for Numeric
+            elif pd.api.types.is_numeric_dtype(df[col]):
+                # Check whether a numeric column is actually binary (two unique non-null values)
+                try:
+                    unique_nonnull = df[col].dropna().nunique()
+                except Exception:
+                    unique_nonnull = df[col].nunique()
+
+                if unique_nonnull == 2:
+                    binary_categorical.append(col)
+                else:
+                    numeric_cols.append(col)
+
+            # Remaining are treated as Categorical/Text
             else:
-                schema["categorical"].append(col)
-                
-        return schema
+                # If unique count is low, force to categorical
+                if df[col].nunique() <= max_categorical_cardinality:
+                    categorical_cols.append(col)
+                # For high cardinality strings, we treat them as identifiers or noise for now
+                else:
+                    # Treat high-cardinality strings as categorical but they will be excluded from
+                    # most simple modeling/profiling steps to avoid memory issues.
+                    # We still track them under 'categorical' but note their high cardinality elsewhere.
+                    categorical_cols.append(col)
+
+        # Add the target column back into its respective category. If the target is numeric
+        # but binary (e.g., 0/1), classify it as binary_categorical so downstream modules
+        # treat it as classification.
+        if target_col in df.columns:
+            if pd.api.types.is_numeric_dtype(df[target_col]):
+                try:
+                    target_unique = df[target_col].dropna().nunique()
+                except Exception:
+                    target_unique = df[target_col].nunique()
+
+                if target_unique == 2:
+                    binary_categorical.append(target_col)
+                else:
+                    numeric_cols.append(target_col)
+            else:
+                categorical_cols.append(target_col)
+
+        return {
+            'numeric': numeric_cols, # No longer filtering out target_col here
+            'categorical': categorical_cols, # No longer filtering out target_col here
+            'datetime': datetime_cols,
+            'binary_categorical': binary_categorical,
+            'target': target_col
+        }

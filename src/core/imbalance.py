@@ -94,12 +94,25 @@ class ImbalanceAnalyzer:
             "warning": warning_msg
         }
 
+   # In src/core/imbalance.py
+
     @staticmethod
     def run_imbalance_analysis(df: pd.DataFrame, target_col: str, target_is_numeric: bool) -> dict:
         """
         Main runner function to decide between classification and regression analysis.
         """
-        if target_is_numeric:
-            return ImbalanceAnalyzer.analyze_regression_target(df, target_col)
-        else:
-            return ImbalanceAnalyzer.analyze_classification_target(df, target_col)
+        try:
+            if target_is_numeric:
+                # Assumes analyze_regression_target returns a dict
+                return ImbalanceAnalyzer.analyze_regression_target(df, target_col)
+            else:
+                # Assumes analyze_classification_target returns a dict
+                return ImbalanceAnalyzer.analyze_classification_target(df, target_col)
+        
+        except Exception as e:
+            # 🚨 CRITICAL FIX: Always return a dictionary on failure
+            # This prevents the HealthScorer from receiving a float or non-dictionary value.
+            return {"error": f"Imbalance analysis failed in target type routing: {e}",
+                    "severity": "CRITICAL",
+                    "imbalance_ratio": 0.0,
+                    "warning": f"Imbalance analysis could not be completed. Error: {e}"}

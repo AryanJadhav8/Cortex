@@ -53,15 +53,28 @@ class DataProfiler:
             
         return categorical_profiles
 
+    # In src/core/profiling.py
+
     @staticmethod
     def run_profiling(df: pd.DataFrame, schema: dict) -> dict:
         """
-        Runs both numerical and categorical profiling.
+        Runs profiling analysis on numeric and categorical features.
         """
-        numerical_profile = DataProfiler.profile_numerical_features(df, schema['numeric'])
-        categorical_profile = DataProfiler.profile_categorical_features(df, schema['categorical'])
-        
-        return {
-            "numerical": numerical_profile,
-            "categorical": categorical_profile
-        }
+        try:
+            numeric_cols = schema['numeric']
+            categorical_cols = schema['categorical']
+            
+            # Call helper functions (which should also ideally be wrapped)
+            numeric_stats = DataProfiler.analyze_numeric_features(df, numeric_cols)
+            categorical_stats = DataProfiler.analyze_categorical_features(df, categorical_cols)
+            
+            return {
+                "numeric_stats": numeric_stats,
+                "categorical_stats": categorical_stats,
+            }
+
+        except Exception as e:
+            # 🚨 CRITICAL FIX: Always return a dictionary on failure
+            return {"error": f"Data Profiling analysis failed: {e}",
+                    "numeric_stats": {"info": "Profiling failed"},
+                    "categorical_stats": {"info": "Profiling failed"}}

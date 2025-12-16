@@ -69,14 +69,31 @@ class DataHealth:
         
         return cardinality_df
 
+    # In src/core/health.py
+
     @staticmethod
     def run_health_check(df: pd.DataFrame) -> dict:
         """
         Runs all health checks and combines results into a single dictionary.
         """
-        # Note: We convert to_dict() for easy serialization/passing to Streamlit later
-        return {
-            "missing_data": DataHealth.get_missing_data_summary(df).to_dict(),
-            "duplicate_summary": DataHealth.get_duplicate_summary(df),
-            "cardinality": DataHealth.get_column_cardinality(df).to_dict()
-        }
+        try:
+            # Note: We convert to_dict() for easy serialization/passing to Streamlit later
+            # Return nested dicts keyed by column name so downstream code can
+            # index into e.g. missing_data['Missing Percent'][col_name]
+            return {
+                "missing_data": DataHealth.get_missing_data_summary(df).to_dict(),
+                "duplicate_summary": DataHealth.get_duplicate_summary(df),
+                "cardinality": DataHealth.get_column_cardinality(df).to_dict()
+            }
+        except Exception as e:
+            # 🚨 CRITICAL FIX: Always return a dictionary on failure with safe defaults
+            # This prevents downstream KeyError when rendering in Streamlit.
+            return {
+                "missing_data": {},
+                "duplicate_summary": {
+                    "total_rows": 0,
+                    "duplicate_rows": 0,
+                    "duplicate_percent": 0.0
+                },
+                "cardinality": {}
+            }

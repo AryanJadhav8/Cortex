@@ -112,23 +112,32 @@ class BaselineModeler:
             return {"error": f"Cross-validation failed. Ensure target variable and features are correctly formatted. Error: {e}"}
 
 
-        # 4. Train the model once on the full dataset to get feature importance
-        pipeline.fit(X, y)
-        importances = BaselineModeler._get_feature_importances(pipeline, preprocessor, numerical_cols, categorical_cols)
-        
-        # 5. Interpret Leakage
-        mean_cv_score = cv_scores.mean()
-        leakage_warning = None
-        
-        # Standard warning thresholds (Accuracy > 0.99 or R2 > 0.99)
-        if (is_classification and mean_cv_score > 0.99) or (not is_classification and mean_cv_score > 0.99):
-            leakage_warning = "SEVERE LEAKAGE DETECTED: CV score is nearly perfect. Data is likely contaminated."
+        # In src/modeling/baseline.py, inside run_baseline_model:
 
-        # 6. Prepare Results
-        return {
-            "model_type": "Classification" if is_classification else "Regression",
-            "mean_cv_score": round(mean_cv_score, 4),
-            "cv_scores": cv_scores.round(4).tolist(),
-            "leakage_warning": leakage_warning,
-            "feature_importances": importances
-        }
+# ... (Up to the point where cv_scores is successfully calculated) ...
+
+# 4. Train the model once on the full dataset to get feature importance
+        try:
+            pipeline.fit(X, y)
+            importances = BaselineModeler._get_feature_importances(pipeline, preprocessor, numerical_cols, categorical_cols)
+            
+            # 5. Interpret Leakage
+            mean_cv_score = cv_scores.mean()
+            leakage_warning = None
+            
+            # Standard warning thresholds (Accuracy > 0.99 or R2 > 0.99)
+            if (is_classification and mean_cv_score > 0.99) or (not is_classification and mean_cv_score > 0.99):
+                leakage_warning = "SEVERE LEAKAGE DETECTED: CV score is nearly perfect. Data is likely contaminated."
+
+            # 6. Prepare Results (Return the successful dictionary)
+            return {
+                "model_type": "Classification" if is_classification else "Regression",
+                "mean_cv_score": round(mean_cv_score, 4),
+                "cv_scores": cv_scores.round(4).tolist(),
+                "leakage_warning": leakage_warning,
+                "feature_importances": importances
+            }
+
+        except Exception as e:
+            # This captures any failure during fit, feature importance, or result preparation.
+            return {"error": f"Baseline model failed during final fit or feature importance calculation. Error: {e}"}
