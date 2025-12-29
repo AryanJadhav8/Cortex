@@ -1,13 +1,12 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 import io
 from src.modeling.baseline import BaselineModeler
 from src.core.remediator import DataRemediator
 
-app = FastAPI(title="CORTEX AI API")
+app = FastAPI()
 
-# Allow React to talk to this API later
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -15,44 +14,36 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/")
-def read_root():
-    return {"status": "CORTEX Online", "features": ["SHAP Interpretability", "KNN Remediation"]}
-
-@app.post("/analyze")
-async def analyze_data(file: UploadFile = File(...)):
-    try:
-        # 1. Load Data
-        contents = await file.read()
-        df = pd.read_csv(io.BytesIO(contents))
-        
-        # 2. Basic Setup (Target is last column for now)
-        target_col = df.columns[-1]
-        schema = {
-            "numeric": df.select_dtypes(include=['number']).columns.tolist(),
-            "categorical": df.select_dtypes(include=['object']).columns.tolist()
-        }
-        
-        # 3. Run SHAP Model
-        results = BaselineModeler.run_baseline_model(df, target_col, schema, is_classification=True)
-        return results
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @app.post("/heal")
 async def heal_data(file: UploadFile = File(...)):
-    try:
-        contents = await file.read()
-        df = pd.read_csv(io.BytesIO(contents))
-        
-        target_col = df.columns[-1]
-        healed_df = DataRemediator.smart_impute(df, target_col)
-        
-        return {
-            "missing_before": int(df.isnull().sum().sum()),
-            "missing_after": int(healed_df.isnull().sum().sum()),
-            "data": healed_df.head(10).to_dict(orient="records")
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    contents = await file.read()
+    df = pd.read_csv(io.BytesIO(contents))
+    
+    # 1. Calculate Health Data (Missing per column)
+    health_map = {k: int(v) for k, v in df.isnull().sum().to_dict().items() if v > 0}
+    if not health_map: health_map = {col: 0 for col in df.columns[:5]}
+
+    # 2. Heal Data
+    target_col = df.columns[-1]
+    healed_df = DataRemediator.smart_impute(df, target_col)
+    
+    # 3. Run Modeler
+    schema = {
+        "numeric": healed_df.select_dtypes(include=['number']).columns.tolist(),
+        "categorical": healed_df.select_dtypes(include=['object']).columns.tolist()
+    }
+    model_results = BaselineModeler.run_baseline_model(healed_df, target_col, schema, True)
+
+    # 4. Final Response Construction (Ensures report.stats exists)
+    return {
+        "stats": {
+            "accuracy": model_results["accuracy"],
+            "missing_before": model_results["missing_before"],
+            "rows": model_results["rows"]
+        },
+        "analysis": {
+            "health_data": health_map,
+            "feature_importance": model_results["feature_importance"]
+        },
+        "preview_data": healed_df.head(10).to_dict(orient="records")
+    }
