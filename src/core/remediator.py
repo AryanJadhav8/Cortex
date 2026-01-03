@@ -1,44 +1,32 @@
 import pandas as pd
 import numpy as np
-import traceback
-from sklearn.impute import KNNImputer
 
 class DataRemediator:
     @staticmethod
     def smart_impute(df: pd.DataFrame, target_col: str) -> pd.DataFrame:
-        """
-        Heals missing values while preserving text columns (like Names).
-        """
-        try:
-            df_healed = df.copy()
+        df_cleaned = df.copy()
+
+        for col in df_cleaned.columns:
+            missing_pct = df_cleaned[col].isnull().mean() * 100
             
-            # 1. Separate Columns by type
-            # We only want to run KNN on numbers. We leave 'object' (text) alone.
-            numeric_cols = df_healed.select_dtypes(include=[np.number]).columns.tolist()
-            text_cols = df_healed.select_dtypes(exclude=[np.number]).columns.tolist()
-
-            # 2. Heal Numeric Columns
-            if numeric_cols:
-                # We use KNN only on the numeric part
-                imputer = KNNImputer(n_neighbors=min(5, len(df)-1))
+            if df_cleaned[col].isnull().any():
+                # 1. NUMERIC COLUMNS (Age, Fare, etc.)
+                if np.issubdtype(df_cleaned[col].dtype, np.number):
+                    # Use median for numbers to avoid outliers affecting the mean
+                    df_cleaned[col] = df_cleaned[col].fillna(df_cleaned[col].median())
                 
-                # Perform the imputation
-                imputed_numeric = imputer.fit_transform(df_healed[numeric_cols])
-                
-                # Put the healed numbers back
-                df_healed[numeric_cols] = imputed_numeric
-
-                # 3. SAFETY NET: If KNN left any NaNs (the '2' you saw), use Median
-                if df_healed[numeric_cols].isnull().sum().sum() > 0:
-                    df_healed[numeric_cols] = df_healed[numeric_cols].fillna(df_healed[numeric_cols].median())
-
-            # 4. Heal Text Columns (Keep them as text!)
-            for col in text_cols:
-                # Instead of numbers, we just fill empty names with "Unknown"
-                df_healed[col] = df_healed[col].fillna("Unknown")
-
-            return df_healed
-
-        except Exception as e:
-            print(f"DEBUG ERROR: {traceback.format_exc()}")
-            return df
+                # 2. CATEGORICAL COLUMNS (Cabin, Embarked, etc.)
+                else:
+                    # If more than 50% is missing, don't guess a name. 
+                    # Label it as "N/A" so the model knows it's missing data.
+                    if missing_pct > 50:
+                        df_cleaned[col] = df_cleaned[col].fillna("N/A")
+                    else:
+                        # Otherwise, use the most frequent value (Mode)
+                        mode_val = df_cleaned[col].mode()
+                        if not mode_val.empty:
+                            df_cleaned[col] = df_cleaned[col].fillna(mode_val[0])
+                        else:
+                            df_cleaned[col] = df_cleaned[col].fillna("Unknown")
+        
+        return df_cleaned
