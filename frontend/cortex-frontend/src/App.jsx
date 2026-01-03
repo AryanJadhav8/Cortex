@@ -4,6 +4,7 @@ import { Download, Zap, Activity, ShieldCheck, Database, FileUp, RefreshCw } fro
 import DataTable from './components/layout/DataTable';
 import DataHealthChart from './components/charts/DataHealthChart';
 import ColumnSelector from './components/layout/ColumnSelector';
+import TargetSelector from './components/layout/TargetSelector';
 import CortexInsights from './components/layout/CortexInsights';
 import FeatureImportance from './components/charts/FeatureImportance';
 
@@ -12,7 +13,9 @@ export default function App() {
   const [report, setReport] = useState(null);
   const [file, setFile] = useState(null); 
   const [selectedCols, setSelectedCols] = useState([]);
+  const [selectedTarget, setSelectedTarget] = useState(null);
   const [insights, setInsights] = useState([]);
+  const [openDropdown, setOpenDropdown] = useState(null); // NEW: Track which dropdown is open
 
   // INITIAL FILE UPLOAD
   const processFile = async (uploadedFile) => {
@@ -27,9 +30,12 @@ export default function App() {
     try {
       const res = await axios.post('http://localhost:8000/heal', formData);
       setReport(res.data);
-      // Default: All columns selected
-      const allCols = res.data.analysis.column_diagnostics.map(c => c.value);
+      // Default: All columns selected except target
+      const allCols = res.data.analysis.column_diagnostics
+        .map(c => c.value)
+        .filter(c => c !== res.data.stats.target_used);
       setSelectedCols(allCols);
+      setSelectedTarget(res.data.stats.target_used);
       
       // Initial System Log
       setInsights([{
@@ -48,7 +54,7 @@ export default function App() {
 
   // RE-CALIBRATION WITH DYNAMIC REASONING
   const handleRefine = async () => {
-    if (!file) return;
+    if (!file || !selectedTarget) return;
     setLoading(true);
 
     const prevAccuracy = parseFloat(report?.stats?.accuracy || 0);
@@ -56,6 +62,7 @@ export default function App() {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('selected_columns', JSON.stringify(selectedCols));
+    formData.append('target_column', selectedTarget);
 
     try {
       const res = await axios.post('http://localhost:8000/heal', formData);
@@ -106,6 +113,18 @@ export default function App() {
     });
   };
 
+  const handleTargetChange = (newTarget) => {
+    setSelectedTarget(newTarget);
+    // Remove target from selected columns if it's there
+    setSelectedCols(prev => prev.filter(c => c !== newTarget));
+    setOpenDropdown(null); // Close dropdown after selection
+  };
+
+  // Helper to toggle dropdown state
+  const toggleDropdown = (name) => {
+    setOpenDropdown(openDropdown === name ? null : name);
+  };
+
   return (
     <div className="min-h-screen bg-[#050505] text-white p-8 relative overflow-hidden">
       {/* Background Grid Layer */}
@@ -140,18 +159,37 @@ export default function App() {
           <div className="space-y-6 z-50">
             {report && (
               <div className="relative z-[100] flex flex-col gap-3 p-1 bg-zinc-900/30 rounded-[2rem] border border-white/5 shadow-2xl backdrop-blur-md">
-                <ColumnSelector 
-                  diagnostics={report.analysis.column_diagnostics} 
-                  selectedColumns={selectedCols}
-                  onSelectionChange={toggleColumn}
-                />
+                <div onClick={() => toggleDropdown('target')}>
+                  <TargetSelector
+                    diagnostics={report.analysis.column_diagnostics}
+                    selectedTarget={selectedTarget}
+                    onTargetChange={handleTargetChange}
+                    isOpen={openDropdown === 'target'}
+                    onToggle={() => toggleDropdown('target')}
+                  />
+                </div>
+                <div onClick={() => toggleDropdown('features')}>
+                  <ColumnSelector 
+                    diagnostics={report.analysis.column_diagnostics} 
+                    selectedColumns={selectedCols}
+                    onSelectionChange={toggleColumn}
+                    isOpen={openDropdown === 'features'}
+                    onToggle={() => toggleDropdown('features')}
+                  />
+                </div>
                 <button 
                   onClick={handleRefine}
                   className="w-full h-14 bg-cyan-500 hover:bg-cyan-400 text-black font-black rounded-2xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-xs"
                 >
                   <RefreshCw size={16} /> Re-Calibrate Intelligence
                 </button>
-                <FeatureImportance data={report?.analysis?.feature_importance} />
+                <div onClick={() => toggleDropdown('importance')}>
+                  <FeatureImportance 
+                    data={report?.analysis?.feature_importance}
+                    isOpen={openDropdown === 'importance'}
+                    onToggle={() => toggleDropdown('importance')}
+                  />
+                </div>
               </div>
             )}
             

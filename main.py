@@ -18,22 +18,37 @@ app.add_middleware(
 @app.post("/heal")
 async def heal_data(
     file: UploadFile = File(...), 
-    selected_columns: str = Form("[]") 
+    selected_columns: str = Form("[]"),
+    target_column: str = Form(None)  # ADD THIS LINE
 ):
     try:
         # 1. READ FILE
         contents = await file.read()
         df = pd.read_csv(io.BytesIO(contents))
         total_rows = len(df)
-        target_col = df.columns[-1]
+        
+        # 2. RESOLVE TARGET COLUMN - MODIFY THIS SECTION
+        # If frontend sent a target, use it. Otherwise, default to the last column.
+        if target_column and target_column in df.columns:
+            target_col = target_column
+        else:
+            target_col = df.columns[-1]
 
-        # 2. PARSE SELECTED COLUMNS
+        # 3. PARSE SELECTED COLUMNS
         try:
             chosen_features = json.loads(selected_columns)
         except Exception:
             chosen_features = []
 
-        # 3. GENERATE DIAGNOSTICS (Always based on full dataset)
+        # If no features are selected, use all columns EXCEPT the target
+        if not chosen_features:
+            chosen_features = [c for c in df.columns if c != target_col]
+        
+        # SAFETY CHECK: Remove target from features if it's accidentally there
+        if target_col in chosen_features:
+            chosen_features.remove(target_col)
+
+        # 4. GENERATE DIAGNOSTICS (Always based on full dataset)
         column_diagnostics = []
         for col in df.columns:
             unique_count = df[col].nunique()
@@ -50,20 +65,14 @@ async def heal_data(
                 "is_noisy": cardinality_ratio > 0.8 and df[col].dtype == 'object'
             })
 
-        # 4. SMART HEALING (Clean the whole dataframe)
-        # Assuming DataRemediator is imported correctly
+        # 5. SMART HEALING
         from src.core.remediator import DataRemediator
         healed_df = DataRemediator.smart_impute(df, target_col)
         
-        # 5. MODELING (Filter ONLY for this step)
-        # Use all columns if none are selected, otherwise use selection
-        features_for_model = chosen_features if chosen_features else df.columns.tolist()
-        
-        # Ensure target is present for modeling
-        if target_col not in features_for_model:
-            features_for_model.append(target_col)
-            
-        model_input_df = healed_df[features_for_model]
+        # 6. MODELING PREPARATION - MODIFY THIS SECTION
+        # Build features list + target for modeling
+        modeling_cols = chosen_features + [target_col]
+        model_input_df = healed_df[modeling_cols]
         
         from src.modeling.baseline import BaselineModeler
         schema = {
@@ -71,13 +80,21 @@ async def heal_data(
             "categorical": model_input_df.select_dtypes(include=['object']).columns.tolist()
         }
         
+        # Remove target from schema to avoid modeler confusion
+        if target_col in schema["numeric"]:
+            schema["numeric"].remove(target_col)
+        if target_col in schema["categorical"]:
+            schema["categorical"].remove(target_col)
+        
         model_results = BaselineModeler.run_baseline_model(model_input_df, target_col, schema, True)
 
+        # 7. RESPONSE - ADD target_used TO STATS
         return {
             "stats": {
                 "accuracy": model_results.get("accuracy", "N/A"),
                 "missing_before": int(df.isnull().sum().sum()),
-                "rows": total_rows
+                "rows": total_rows,
+                "target_used": target_col  # ADD THIS LINE
             },
             "analysis": {
                 "health_data": {k: int(v) for k, v in df.isnull().sum().to_dict().items() if v > 0},
