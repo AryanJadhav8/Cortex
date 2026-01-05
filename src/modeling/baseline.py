@@ -28,8 +28,7 @@ class BaselineModeler:
     def run_baseline_model(df: pd.DataFrame, target_col: str, schema: dict, is_classification: bool) -> dict:
         try:
             df_copy = df.copy() 
-            cols_to_drop = [col for col in df_copy.columns if any(x in col.lower() for x in ['name', 'id', 'ticket'])]
-            X = df_copy.drop(columns=[target_col] + cols_to_drop)
+            X = df_copy.drop(columns=[target_col])
             y = df_copy[target_col]
             
             numerical_cols = [c for c in schema['numeric'] if c in X.columns]

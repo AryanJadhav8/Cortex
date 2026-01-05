@@ -1,10 +1,28 @@
-# Python Specific Ignored Files
+# --- Python Specific ---
 *.pyc
 __pycache__/
 .pytest_cache/
-
-# Virtual Environment
+.ipynb_checkpoints/
 venv/
+.env
 
-# Data Files
+# --- Frontend (Node/Vite) ---
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+# This is the culprit you saw!
+.vite/
+.eslintcache
+
+# --- OS Specific ---
+.DS_Store
+Thumbs.db
+
+# --- Data & Logs ---
 *.csv
+*.log
+# If you have a specific data folder, ignore its contents but maybe keep the folder
+# data/*
+# !data/.gitkeep
