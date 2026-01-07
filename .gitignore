@@ -1,4 +1,4 @@
-# --- Python Specific ---
+# --- Python  ---
 *.pyc
 __pycache__/
 .pytest_cache/
@@ -12,17 +12,13 @@ dist/
 dist-ssr/
 *.local
 
-# This is the culprit you saw!
 .vite/
 .eslintcache
 
-# --- OS Specific ---
+# --- OS  ---
 .DS_Store
 Thumbs.db
 
 # --- Data & Logs ---
 *.csv
 *.log
-# If you have a specific data folder, ignore its contents but maybe keep the folder
-# data/*
-# !data/.gitkeep
