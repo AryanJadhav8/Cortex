@@ -22,3 +22,5 @@ Thumbs.db
 # --- Data & Logs ---
 *.csv
 *.log
+
+tests/
