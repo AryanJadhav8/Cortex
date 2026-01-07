@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import { Download, Zap, Activity, ShieldCheck, Database, FileUp, RefreshCw } from 'lucide-react';
+import { Download, Zap, Activity, ShieldCheck, Database, FileUp, RefreshCw, Trophy } from 'lucide-react';
 import DataTable from './components/layout/DataTable';
 import DataHealthChart from './components/charts/DataHealthChart';
 import ColumnSelector from './components/layout/ColumnSelector';
 import TargetSelector from './components/layout/TargetSelector';
 import CortexInsights from './components/layout/CortexInsights';
 import FeatureImportance from './components/charts/FeatureImportance';
+import NeuralArena from './components/charts/NeuralArena';
 
 export default function App() {
   const [loading, setLoading] = useState(false);
@@ -15,7 +16,9 @@ export default function App() {
   const [selectedCols, setSelectedCols] = useState([]);
   const [selectedTarget, setSelectedTarget] = useState(null);
   const [insights, setInsights] = useState([]);
-  const [openDropdown, setOpenDropdown] = useState(null); // NEW: Track which dropdown is open
+  const [openDropdown, setOpenDropdown] = useState(null);
+  const [arenaMode, setArenaMode] = useState(false);
+  const [arenaResults, setArenaResults] = useState(null);
 
   // INITIAL FILE UPLOAD
   const processFile = async (uploadedFile) => {
@@ -103,6 +106,28 @@ export default function App() {
     }
   };
 
+  // NEURAL ARENA BATTLE
+  const handleNeuralArena = async () => {
+    if (!file || !selectedTarget) return;
+    setLoading(true);
+    setArenaMode(true);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('selected_columns', JSON.stringify(selectedCols));
+    formData.append('target_column', selectedTarget);
+
+    try {
+      const res = await axios.post('http://localhost:8000/neural-arena', formData);
+      setArenaResults(res.data.neural_arena);
+    } catch (err) {
+      alert("Neural Arena battle failed.");
+      setArenaMode(false);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const toggleColumn = (colValue) => {
     setSelectedCols(prev => {
       if (prev.includes(colValue)) {
@@ -183,6 +208,12 @@ export default function App() {
                 >
                   <RefreshCw size={16} /> Re-Calibrate Intelligence
                 </button>
+                <button 
+                  onClick={handleNeuralArena}
+                  className="w-full h-14 bg-purple-600 hover:bg-purple-500 text-white font-black rounded-2xl transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-xs"
+                >
+                  <Trophy size={16} /> Enter Neural Arena
+                </button>
                 <div onClick={() => toggleDropdown('importance')}>
                   <FeatureImportance 
                     data={report?.analysis?.feature_importance}
@@ -194,32 +225,58 @@ export default function App() {
             )}
             
             <DataHealthChart data={report?.analysis} />
-            
-            {/* Intelligence Log Panel */}
-            <CortexInsights logs={insights} />
           </div>
 
-          {/* Right Main Panel: Data Viewer */}
-          <div className="col-span-2">
-            {loading ? (
-              <div className="h-[600px] bg-zinc-900/40 rounded-[2rem] flex flex-col items-center justify-center animate-pulse border border-cyan-500/20 shadow-[0_0_50px_rgba(6,182,212,0.1)]">
-                <div className="w-12 h-12 border-4 border-white/5 border-t-cyan-500 rounded-full animate-spin mb-4" />
-                <p className="font-mono text-xs text-cyan-500 tracking-[0.3em]">SYNCHRONIZING VECTORS...</p>
-              </div>
-            ) : report ? (
-              <DataTable rows={report.preview_data} />
-            ) : (
-              <label 
-                onDragOver={(e)=>{e.preventDefault()}} 
-                onDrop={(e)=>{e.preventDefault(); processFile(e.dataTransfer.files[0])}}
-                className="h-[600px] border-2 border-dashed border-white/10 rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer hover:bg-zinc-900/20 hover:border-cyan-500/40 transition-all group"
-              >
-                <div className="p-8 rounded-full bg-white/5 mb-4 group-hover:scale-110 transition-transform">
-                  <FileUp size={40} className="text-zinc-500 group-hover:text-cyan-500 transition-colors" />
+          {/* Right Main Panel: Data Viewer / Arena Results + Intelligence Log */}
+          <div className="col-span-2 flex flex-col gap-6">
+            {/* Data Preview */}
+            <div>
+              {loading ? (
+                <div className="h-[350px] bg-zinc-900/40 rounded-[2rem] flex flex-col items-center justify-center animate-pulse border border-cyan-500/20 shadow-[0_0_50px_rgba(6,182,212,0.1)]">
+                  <div className="w-12 h-12 border-4 border-white/5 border-t-cyan-500 rounded-full animate-spin mb-4" />
+                  <p className="font-mono text-xs text-cyan-500 tracking-[0.3em]">SYNCHRONIZING VECTORS...</p>
                 </div>
-                <p className="font-mono text-xs uppercase tracking-[0.2em] text-zinc-500">Drop CSV to Initialize Cortex</p>
-                <input type="file" className="hidden" onChange={(e)=>processFile(e.target.files[0])} />
-              </label>
+              ) : arenaMode && arenaResults ? (
+                <div className="relative bg-zinc-900/40 rounded-[2rem] border border-cyan-500/20 p-6 shadow-[0_0_50px_rgba(6,182,212,0.1)]">
+                  <button
+                    onClick={() => {
+                      setArenaMode(false);
+                      setArenaResults(null);
+                    }}
+                    className="absolute top-4 right-4 text-zinc-400 hover:text-white transition-colors z-10"
+                  >
+                    <span className="text-xl">✕</span>
+                  </button>
+                  <div className="mb-6 pr-8">
+                    <h2 className="text-2xl font-black italic mb-2">NEURAL <span className="text-cyan-500">ARENA</span></h2>
+                    <p className="text-xs text-zinc-400 uppercase tracking-widest">Algorithm Competition Results</p>
+                  </div>
+                  <div className="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
+                    <NeuralArena data={arenaResults} />
+                  </div>
+                </div>
+              ) : report ? (
+                <DataTable rows={report.preview_data} />
+              ) : (
+                <label 
+                  onDragOver={(e)=>{e.preventDefault()}} 
+                  onDrop={(e)=>{e.preventDefault(); processFile(e.dataTransfer.files[0])}}
+                  className="h-[350px] border-2 border-dashed border-white/10 rounded-[2.5rem] flex flex-col items-center justify-center cursor-pointer hover:bg-zinc-900/20 hover:border-cyan-500/40 transition-all group"
+                >
+                  <div className="p-8 rounded-full bg-white/5 mb-4 group-hover:scale-110 transition-transform">
+                    <FileUp size={40} className="text-zinc-500 group-hover:text-cyan-500 transition-colors" />
+                  </div>
+                  <p className="font-mono text-xs uppercase tracking-[0.2em] text-zinc-500">Drop CSV to Initialize Cortex</p>
+                  <input type="file" className="hidden" onChange={(e)=>processFile(e.target.files[0])} />
+                </label>
+              )}
+            </div>
+
+            {/* Intelligence Log Panel */}
+            {report && (
+              <div>
+                <CortexInsights logs={insights} />
+              </div>
             )}
           </div>
 

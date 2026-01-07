@@ -30,9 +30,9 @@ export default function CortexInsights({ logs }) {
                     {log.trend} {log.diff}
                   </span>
                 </div>
-                <span className="text-[8px] font-mono text-zinc-600">{log.timestamp}</span>
+                <span className="text-[12px] font-mono text-zinc-600">{log.timestamp}</span>
               </div>
-              <p className="text-[11px] text-zinc-400 leading-relaxed font-mono">
+              <p className="text-[0.85rem] text-zinc-400 leading-relaxed font-mono">
                 {log.message}
               </p>
             </div>

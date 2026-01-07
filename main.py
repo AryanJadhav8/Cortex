@@ -106,3 +106,71 @@ async def heal_data(
     except Exception as e:
         logging.error(f"Heal error: {str(e)}")
         return {"error": str(e)}, 500
+    
+@app.post("/neural-arena")
+async def neural_arena(
+    file: UploadFile = File(...), 
+    selected_columns: str = Form("[]"),
+    target_column: str = Form(None)
+):
+    try:
+        # 1. READ FILE
+        contents = await file.read()
+        df = pd.read_csv(io.BytesIO(contents))
+        total_rows = len(df)
+        
+        # 2. RESOLVE TARGET COLUMN
+        if target_column and target_column in df.columns:
+            target_col = target_column
+        else:
+            target_col = df.columns[-1]
+
+        # 3. PARSE SELECTED COLUMNS
+        try:
+            chosen_features = json.loads(selected_columns)
+        except Exception:
+            chosen_features = []
+
+        # If no features are selected, use all columns EXCEPT the target
+        if not chosen_features:
+            chosen_features = [c for c in df.columns if c != target_col]
+        
+        # SAFETY CHECK: Remove target from features if it's accidentally there
+        if target_col in chosen_features:
+            chosen_features.remove(target_col)
+
+        # 4. SMART HEALING
+        from src.core.remediator import DataRemediator
+        healed_df = DataRemediator.smart_impute(df, target_col)
+        
+        # 5. MODELING PREPARATION
+        modeling_cols = chosen_features + [target_col]
+        model_input_df = healed_df[modeling_cols]
+        
+        schema = {
+            "numeric": model_input_df.select_dtypes(include=['number']).columns.tolist(),
+            "categorical": model_input_df.select_dtypes(include=['object']).columns.tolist()
+        }
+        
+        # Remove target from schema
+        if target_col in schema["numeric"]:
+            schema["numeric"].remove(target_col)
+        if target_col in schema["categorical"]:
+            schema["categorical"].remove(target_col)
+        
+        # 6. RUN NEURAL ARENA
+        from src.modeling.neural_arena import NeuralArena
+        arena_results = NeuralArena.run_arena(model_input_df, target_col, schema)
+
+        # 7. RESPONSE
+        return {
+            "stats": {
+                "rows": total_rows,
+                "target_used": target_col,
+                "features_used": chosen_features
+            },
+            "neural_arena": arena_results
+        }
+    except Exception as e:
+        logging.error(f"Neural Arena error: {str(e)}")
+        return {"error": str(e)}, 500
