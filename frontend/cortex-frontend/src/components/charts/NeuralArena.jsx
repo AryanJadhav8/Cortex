@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { 
   Trophy, Activity, Trees, Cpu, Target, Network, 
-  ChevronDown, ChevronUp, Info, Zap
+  Info
 } from 'lucide-react';
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, ResponsiveContainer, Tooltip } from 'recharts';
 import { cn } from '../../lib/utils';
 
 // Mapping string names from Python to Lucide components
@@ -14,6 +15,20 @@ const iconMap = {
   Network: Network
 };
 
+// Custom Tooltip for Radar Chart
+const CustomRadarTooltip = ({ active, payload }) => {
+  if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    return (
+      <div className="bg-zinc-950 border border-cyan-500/50 rounded-lg p-3 shadow-lg backdrop-blur">
+        <p className="text-cyan-400 font-bold text-sm">{data.name}</p>
+        <p className="text-white font-black text-lg">{data.accuracy.toFixed(1)}%</p>
+      </div>
+    );
+  }
+  return null;
+};
+
 export default function NeuralArena({ data }) {
   const [expandedModel, setExpandedModel] = useState(null);
 
@@ -23,6 +38,13 @@ export default function NeuralArena({ data }) {
 
   const results = Object.entries(data.arena_results);
   const champion = data.champion;
+
+  // Prepare data for radar chart
+  const radarData = results.map(([modelName, stats]) => ({
+    name: modelName,
+    accuracy: parseFloat((stats.accuracy * 100).toFixed(1)),
+    fullMark: 100
+  }));
 
   const containerColors = {
     emerald: 'bg-emerald-950/30 border-emerald-500/30',
@@ -65,6 +87,43 @@ export default function NeuralArena({ data }) {
           <div className="text-2xl font-black text-cyan-400 px-2">
             {champion.accuracy}
           </div>
+        </div>
+      </div>
+
+      {/* Radar Chart */}
+      <div className="bg-zinc-900/40 border border-white/5 rounded-2xl p-4">
+        <p className="text-zinc-500 uppercase tracking-[0.2em] font-bold text-[10px] mb-4">Performance Overview</p>
+        <div className="flex justify-center items-center h-[300px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <RadarChart data={radarData} margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
+              <PolarGrid stroke="#27272a" strokeDasharray="3 3" />
+              <PolarAngleAxis 
+                dataKey="name" 
+                stroke="#a1a1aa"
+                tick={{ fill: '#a1a1aa', fontSize: 11 }}
+              />
+              <PolarRadiusAxis 
+                angle={90} 
+                domain={[0, 100]}
+                stroke="#52525b"
+                tick={{ fill: '#71717a', fontSize: 10 }}
+              />
+              <Radar 
+                name="Accuracy %" 
+                dataKey="accuracy" 
+                stroke="#06b6d4" 
+                fill="#06b6d4" 
+                fillOpacity={0.3}
+                dot={{ fill: '#06b6d4', r: 4 }}
+                activeDot={{ r: 6, fill: '#06b6d4' }}
+              />
+              <Tooltip content={<CustomRadarTooltip />} />
+              <Legend 
+                wrapperStyle={{ paddingTop: '20px' }}
+                labelStyle={{ color: '#a1a1aa', fontSize: 12 }}
+              />
+            </RadarChart>
+          </ResponsiveContainer>
         </div>
       </div>
 
