@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { 
-  Trophy, Activity, Trees, Cpu, Target, Network, 
+import {
+  Trophy, Activity, Trees, Cpu, Target, Network,
   Info
 } from 'lucide-react';
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, Legend, ResponsiveContainer, Tooltip } from 'recharts';
@@ -78,7 +78,7 @@ export default function NeuralArena({ data }) {
           <Trophy className="text-cyan-400" size={20} />
           <h3 className="text-sm font-black uppercase tracking-widest text-cyan-400">Arena Champion</h3>
         </div>
-        
+
         <div className="flex items-center justify-between">
           <div>
             <div className="text-lg font-bold text-white leading-tight">{champion.name}</div>
@@ -93,32 +93,32 @@ export default function NeuralArena({ data }) {
       {/* Radar Chart */}
       <div className="bg-zinc-900/40 border border-white/5 rounded-2xl p-4">
         <p className="text-zinc-500 uppercase tracking-[0.2em] font-bold text-[10px] mb-4">Performance Overview</p>
-        <div className="flex justify-center items-center h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
+        <div className="flex justify-center items-center w-full" style={{ height: '300px', minHeight: '300px' }}>
+          <ResponsiveContainer width="100%" height={300}>
             <RadarChart data={radarData} margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
               <PolarGrid stroke="#27272a" strokeDasharray="3 3" />
-              <PolarAngleAxis 
-                dataKey="name" 
+              <PolarAngleAxis
+                dataKey="name"
                 stroke="#a1a1aa"
                 tick={{ fill: '#a1a1aa', fontSize: 11 }}
               />
-              <PolarRadiusAxis 
-                angle={90} 
+              <PolarRadiusAxis
+                angle={90}
                 domain={[0, 100]}
                 stroke="#52525b"
                 tick={{ fill: '#71717a', fontSize: 10 }}
               />
-              <Radar 
-                name="Accuracy %" 
-                dataKey="accuracy" 
-                stroke="#06b6d4" 
-                fill="#06b6d4" 
+              <Radar
+                name="Accuracy %"
+                dataKey="accuracy"
+                stroke="#06b6d4"
+                fill="#06b6d4"
                 fillOpacity={0.3}
                 dot={{ fill: '#06b6d4', r: 4 }}
                 activeDot={{ r: 6, fill: '#06b6d4' }}
               />
               <Tooltip content={<CustomRadarTooltip />} />
-              <Legend 
+              <Legend
                 wrapperStyle={{ paddingTop: '20px' }}
                 labelStyle={{ color: '#a1a1aa', fontSize: 12 }}
               />
